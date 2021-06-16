@@ -1,8 +1,3 @@
-
-# coding: utf-8
-
-# In[5]:
-
 import pandas as pd
 
 import glob
