@@ -34,7 +34,9 @@ def parse_vrdu_files(vbox_name,vbo_name,writer):
 
     parsed_data = pd.DataFrame([row.split(',') for row in vbox_raw[start_of_data+1:]])
     # Append src_id to CCVS1 only
-    parsed_data.loc[parsed_data[6]=='CCVS1',6]=            parsed_data.loc[parsed_data[6]=='CCVS1',6]+'-Src='+parsed_data.loc[parsed_data[6]=='CCVS1',9].str[-2:].astype(int).astype(str)
+    parsed_data.loc[parsed_data[6]=='CCVS1',6]=parsed_data.loc[parsed_data[6]=='CCVS1',6]+'-Src='+parsed_data.loc[parsed_data[6]=='CCVS1',9].str[-2:].astype(int).astype(str)
+    # This dictionary is how we organize which columns are wanted for each pgn
+    # if columns are missing, or a pgn is missing, this is where you'd add it
     pgn_column_lookup={
         'EEC1':[],
         'VD':[],
@@ -57,17 +59,23 @@ def parse_vrdu_files(vbox_name,vbo_name,writer):
         print(set(pgn_column_lookup.keys())-set(parsed_data[6].values.tolist()))
         print('In data but not lookup:')
         print(set(parsed_data[6].values.tolist())-set(pgn_column_lookup.keys()))
-    
+
+    # These are the columns we'll grab for the VBO file
     columns_to_keep = ['time','velocity','Range-tg1','LngRsv-tg1','LatRsv-tg1','RelSpd-tg1','Spd-tg1']
 
     pgn_data_tables = {}
 
     for key in pgn_column_lookup.keys():
+        # Skip keys that aren't in the data
         if key not in parsed_data[6].values.tolist():
             continue
-        pgn_data_tables[key] = parsed_data.loc[parsed_data[6]==key,:]                                .apply(lambda x: x[[1,6]+pgn_column_lookup[x[6]][1::2]],axis=1)
+        pgn_data_tables[key] = parsed_data.loc[parsed_data[6]==key,:].apply(lambda x: x[[1,6]+pgn_column_lookup[x[6]][1::2]],axis=1)
         pgn_data_tables[key].columns = ['time','pgn']+[parsed_data.loc[parsed_data[6]==key,column].values.tolist()[0] for column in  pgn_column_lookup[key][0::2]]
 
+    # This is a small helper function to operate on columns of data
+    # If the value in the column can be turned into a float, do that
+    # if you get an error, then just leave it as is
+    # Helpful for columns with strings and floats
     def safe_numeric(x):
         try:
             return float(x)
