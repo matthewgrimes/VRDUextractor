@@ -69,7 +69,12 @@ def parse_vrdu_files(vbox_name,vbo_name,writer):
         # Skip keys that aren't in the data
         if key not in parsed_data[6].values.tolist():
             continue
+        # To each key, assign data where
+        # the pgn = key, and the columns are
+        # 1 and 6 for time and pgn, then the *odd* columns defined above
+        # (the even columns are the names)
         pgn_data_tables[key] = parsed_data.loc[parsed_data[6]==key,:].apply(lambda x: x[[1,6]+pgn_column_lookup[x[6]][1::2]],axis=1)
+        # Assign column names based on values in the *even* columns defined in the lookup above
         pgn_data_tables[key].columns = ['time','pgn']+[parsed_data.loc[parsed_data[6]==key,column].values.tolist()[0] for column in  pgn_column_lookup[key][0::2]]
 
     # This is a small helper function to operate on columns of data
@@ -81,31 +86,50 @@ def parse_vrdu_files(vbox_name,vbo_name,writer):
             return float(x)
         except:
             return x
-
+    # Now we write out pgn_data_tables to the excel worksheet
+    # Under the tab CAN
     # Position the dataframes in the worksheet.
     i = 0
     for key, value in pgn_data_tables.items():
+        # apply safe_numeric above to make the data numeric where possible
         for column in value.columns:
             value[column] = value[column].apply(safe_numeric)
+        # Drop pgn from the data before writing it out
         value.drop('pgn',axis=1).to_excel(writer, sheet_name='CAN', startrow=7, startcol = i,index=False)
+        # Add the value of the pgn above the table as a title
         value['pgn'].head(1).to_excel(writer, sheet_name='CAN', startrow=6, startcol = i,index=False,header=False)
+        # Keep track of where to write the next table
         i = i + len(value.columns)
+    # This is the final number of columns written out -- it's mainly used to
+    # adjust the column width in the notebook, but that's broken at the moment
     can_width = i
 
+    # Now we can work on the vbo file
+    # Get the column names and data by looking for [column names] and [data] in
+    # the raw file
     column_names_index =[index for index,line in enumerate(vbo_raw) if '[column names]' in str(line)][0]+1
     data_index =[index for index,line in enumerate(vbo_raw) if '[data]' in str(line)][0]+1
-
+    # build a dataframe using the data and column names
     vbo_parsed = pd.DataFrame([str(row).split(' ') for row in vbo_raw[data_index:]], columns=str(vbo_raw[column_names_index]).split(' ')[:-1])
 
-    vbo_final = vbo_parsed[columns_to_keep].astype(float)
+    # Grab only the columns we want to keep for the final data
+    vbo_final = vbo_parsed[columns_to_keep]
 
+    # Convert to numeric where possible
     for column in vbo_final.columns:
         vbo_final[column] = vbo_final[column].apply(safe_numeric)
-
+    # the time column is in the format HHMMSS as a number -- this will not stand
+    # so we grab HH and multiply by 60*60, add MM*60, then add SS to get seconds
+    # since midnight
     vbo_final['time']=(vbo_final['time']//10000)*60*60 + (vbo_final['time']//100)%100*60 + vbo_final['time']%100
 
-    vbo_final.to_excel(writer,sheet_name='VBOX',index=False)
-
+    # write out the final dataset to the VBOX tab with a little bit of wiggle
+    # room above for notes
+    vbo_final.to_excel(writer,sheet_name='VBOX', startrow=5, index=False)
+    # leaving this in for now, but appears to not work with newer versions of
+    # openpyxl
+    # what the code *should* do is adjust the excel column widths to be a little
+    # more readable
 #     worksheet = writer.sheets['CAN']
 #     for i in range(can_width+1):
 #         worksheet.set_column(i,i,12)
