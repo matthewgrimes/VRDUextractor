@@ -6,16 +6,24 @@ import os
 
 def parse_directories(parent_directory):
     os.chdir(parent_directory)
+    # Iterate through folders in the parent directory
     directories = [directory for directory in os.listdir() if os.path.isdir(directory)]
     for directory in directories:
+        # Try to find the csv and VBO file we want to operate on--note the
+        # string matching
         vbox_raw_path = glob.glob(os.path.join(directory,'*VRDU*csv'))
         vbo_raw_path = glob.glob(os.path.join(directory,'*Trimmed.VBO'))
+        # If we can't find both files, print the directory and continue
         if vbox_raw_path == [] or vbo_raw_path == []:
             print(f'Empty directory {directory}')
             continue
+        # The paths should be lists of one element, so grab the first element
         vbox_raw_path = vbox_raw_path[0]
         vbo_raw_path = vbo_raw_path[0]
+        # Initialize the writer to go to an excel file with the same name as
+        # the csv, just different extenstion
         writer = pd.ExcelWriter(vbox_raw_path.replace('csv','xlsx'))
+        # Call the main parser
         parse_vrdu_files(vbox_raw_path,vbo_raw_path,writer)
 
 def parse_vrdu_files(vbox_name,vbo_name,writer):
